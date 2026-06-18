@@ -1,0 +1,7 @@
+rule,severity,status,details
+DQ-01,CRITICAL,PASS,Primary Key Unique
+DQ-02,CRITICAL,FAIL,Duplicate company_id-year combinations found
+DQ-03,CRITICAL,FAIL,Invalid company_id values detected
+DQ-04,WARNING,FAIL,7 Balance Sheet mismatches found
+DQ-05,WARNING,FAIL,234 OPM mismatches found
+DQ-06,WARNING,FAIL,ADANIENSOL Mar 2014 sales value is 0
