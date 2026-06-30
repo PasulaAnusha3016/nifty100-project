@@ -19,7 +19,7 @@ files = {
 
 for table, file in files.items():
     print(f"Loading {table}...")
-    df = pd.read_excel(f"data/raw/{file}", header=1)
+    df = pd.read_excel(f"data/raw/{file}", header=0)
     df.to_sql(table, conn, if_exists="replace", index=False)
 
 print("All tables loaded successfully!")
