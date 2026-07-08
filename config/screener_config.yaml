@@ -1,0 +1,12 @@
+filters:
+  - column: return_on_equity_pct
+    operator: ">"
+    value: 15
+
+  - column: debt_to_equity
+    operator: "<"
+    value: 1
+
+  - column: asset_turnover
+    operator: ">"
+    value: 0.5
