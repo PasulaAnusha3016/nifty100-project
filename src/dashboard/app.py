@@ -1,40 +1,34 @@
 import streamlit as st
+from pathlib import Path
+import runpy
 
 st.set_page_config(
     page_title="Nifty 100 Analytics",
-    page_icon="📈",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
 st.title("Nifty 100 Analytics Dashboard")
 
-st.sidebar.title("Navigation")
+pages = {
+    "Home": "pages/01_home.py",
+    "Company Profile": "pages/02_profile.py",
+    "Screener": "pages/03_screener.py",
+    "Peer Comparison": "pages/04_peers.py",
+    "Trend Analysis": "pages/05_trends.py",
+    "Sector Analysis": "pages/06_sectors.py",
+    "Capital Allocation": "pages/07_capital.py",
+    "Annual Reports": "pages/08_reports.py"
+}
 
-page = st.sidebar.radio(
-    "Select Screen",
-    [
-        "Home",
-        "Company Profile",
-        "Screener",
-        "Peer Comparison",
-        "Trend Analysis",
-        "Sector Analysis",
-        "Capital Allocation",
-        "Annual Reports"
-    ]
+selection = st.sidebar.radio(
+    "Navigation",
+    list(pages.keys())
 )
 
-st.header(page)
+page = Path(pages[selection])
 
-st.info("Sprint 4 Dashboard Scaffold Successfully Created.")
-
-st.write(
-    """
-    This is the main dashboard entry point.
-
-    Use the sidebar to navigate between all 8 screens.
-
-    Each screen will be implemented during Sprint 4.
-    """
-)
+if page.exists():
+    runpy.run_path(str(page))
+else:
+    st.error("Page not found.")
