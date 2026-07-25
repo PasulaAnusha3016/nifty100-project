@@ -1,142 +1,177 @@
-import sqlite3
-import pandas as pd
 import streamlit as st
-from pathlib import Path
+import pandas as pd
+import plotly.express as px
 
-DB_PATH = Path(__file__).parents[3] / "nifty100.db"
+from src.dashboard.utils.db import (
+    get_companies,
+    get_ratios,
+    get_sectors
+)
 
+st.set_page_config(
+    page_title="Nifty 100 Analytics",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
 
-def get_connection():
-    return sqlite3.connect(DB_PATH)
+st.title("Nifty 100 Analytics Dashboard")
 
+companies = get_companies()
+ratios = get_ratios()
+sectors = get_sectors()
 
-@st.cache_data(ttl=600)
-def get_companies():
-    conn = get_connection()
-    df = pd.read_sql("SELECT * FROM companies", conn)
-    conn.close()
-    return df
+years = sorted(
+    ratios["year"].dropna().unique()
+)
 
+selected_year = st.sidebar.selectbox(
+    "Financial Year",
+    years,
+    index=len(years)-1
+)
 
-@st.cache_data(ttl=600)
-def get_ratios(ticker=None, year=None):
-    conn = get_connection()
+latest = ratios[
+    ratios["year"] == selected_year
+].copy()
 
-    query = "SELECT * FROM financial_ratios"
+st.write("Rows:", len(latest))
+st.write("Companies:", latest["company_id"].nunique())
+st.dataframe(latest.head())
 
-    conditions = []
+st.subheader(f"Financial Snapshot : {selected_year}")
 
-    if ticker:
-        conditions.append(f"company_id='{ticker}'")
+avg_roe = latest["return_on_equity_pct"].median()
 
-    if year:
-        conditions.append(f"year='{year}'")
+median_de = latest["debt_to_equity"].median()
 
-    if conditions:
-        query += " WHERE " + " AND ".join(conditions)
+total_companies = latest["company_id"].nunique()
 
-    df = pd.read_sql(query, conn)
+debt_free = len(
+    latest[
+        latest["debt_to_equity"] == 0
+    ]
+)
 
-    conn.close()
+if "price_to_earnings" in latest.columns:
+    median_pe = latest["price_to_earnings"].median()
+else:
+    median_pe = 0
 
-    return df
+if "revenue_cagr_5yr" in latest.columns:
+    revenue_cagr = latest["revenue_cagr_5yr"].median()
+else:
+    revenue_cagr = 0
 
+c1,c2,c3 = st.columns(3)
 
-@st.cache_data(ttl=600)
-def get_pl(ticker=None):
-    conn = get_connection()
+c1.metric(
+    "Average ROE",
+    f"{avg_roe:.2f}%"
+)
 
-    if ticker:
-        query = f"SELECT * FROM profitandloss WHERE company_id='{ticker}'"
-    else:
-        query = "SELECT * FROM profitandloss"
+c2.metric(
+    "Median P/E",
+    f"{median_pe:.2f}"
+)
 
-    df = pd.read_sql(query, conn)
+c3.metric(
+    "Median Debt / Equity",
+    f"{median_de:.2f}"
+)
 
-    conn.close()
+c4,c5,c6 = st.columns(3)
 
-    return df
+c4.metric(
+    "Total Companies",
+    total_companies
+)
 
+c5.metric(
+    "Median Revenue CAGR",
+    f"{revenue_cagr:.2f}%"
+)
 
-@st.cache_data(ttl=600)
-def get_bs(ticker=None):
-    conn = get_connection()
+c6.metric(
+    "Debt Free Companies",
+    debt_free
+)
 
-    if ticker:
-        query = f"SELECT * FROM balancesheet WHERE company_id='{ticker}'"
-    else:
-        query = "SELECT * FROM balancesheet"
+st.divider()
 
-    df = pd.read_sql(query, conn)
+st.subheader("Sector Distribution")
+sector_count = (
+    sectors.groupby("broad_sector")
+    .size()
+    .reset_index(name="Companies")
+)
 
-    conn.close()
+fig = px.pie(
+    sector_count,
+    names="broad_sector",
+    values="Companies",
+    hole=0.45
+)
 
-    return df
+fig.update_layout(
+    title="Companies by Sector"
+)
 
+st.plotly_chart(
+    fig,
+    use_container_width=True
+)
 
-@st.cache_data(ttl=600)
-def get_cf(ticker=None):
-    conn = get_connection()
+st.divider()
 
-    if ticker:
-        query = f"SELECT * FROM cashflow WHERE company_id='{ticker}'"
-    else:
-        query = "SELECT * FROM cashflow"
+st.subheader("Top 5 Companies by Quality Score")
 
-    df = pd.read_sql(query, conn)
+quality = latest.merge(
+    companies[
+        [
+            "company_id",
+            "company_name"
+        ]
+    ],
+    on="company_id",
+    how="left"
+)
 
-    conn.close()
+quality["quality_score"] = (
+    quality["return_on_equity_pct"].fillna(0)
+    + quality["interest_coverage"].fillna(0)
+    + quality["asset_turnover"].fillna(0)
+    - quality["debt_to_equity"].fillna(0)
+)
 
-    return df
+top5 = quality.sort_values(
+    "quality_score",
+    ascending=False
+).head(5)
 
+table = top5[
+    [
+        "company_name",
+        "quality_score",
+        "return_on_equity_pct",
+        "debt_to_equity",
+        "interest_coverage"
+    ]
+].copy()
 
-@st.cache_data(ttl=600)
-def get_sectors():
-    conn = get_connection()
+table.columns = [
+    "Company",
+    "Quality Score",
+    "ROE (%)",
+    "Debt / Equity",
+    "Interest Coverage"
+]
 
-    df = pd.read_sql("SELECT * FROM sectors", conn)
+st.dataframe(
+    table,
+    use_container_width=True,
+    hide_index=True
+)
 
-    conn.close()
+st.divider()
 
-    return df
-
-
-@st.cache_data(ttl=600)
-def get_peers(group_name=None):
-    conn = get_connection()
-
-    if group_name:
-        query = f"SELECT * FROM peer_groups WHERE peer_group_name='{group_name}'"
-    else:
-        query = "SELECT * FROM peer_groups"
-
-    df = pd.read_sql(query, conn)
-
-    conn.close()
-
-    return df
-
-
-@st.cache_data(ttl=600)
-def get_valuation(ticker=None):
-    conn = get_connection()
-
-    tables = pd.read_sql(
-        "SELECT name FROM sqlite_master WHERE type='table'",
-        conn
-    )["name"].tolist()
-
-    if "valuation" not in tables:
-        conn.close()
-        return pd.DataFrame()
-
-    if ticker:
-        query = f"SELECT * FROM valuation WHERE company_id='{ticker}'"
-    else:
-        query = "SELECT * FROM valuation"
-
-    df = pd.read_sql(query, conn)
-
-    conn.close()
-
-    return df
+st.success("Home Dashboard Loaded Successfully ✅")
